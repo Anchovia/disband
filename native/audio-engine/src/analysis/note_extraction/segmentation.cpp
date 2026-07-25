@@ -210,13 +210,24 @@ std::vector<PlayedNote> detectNotes(
         }
 
         aubio_onset_do(context.onset, context.pitchInput, context.onsetOutput);
-        aubio_pitch_do(context.pitch, context.pitchInput, context.pitchOutput);
+        const auto levelDb = static_cast<double>(aubio_db_spl(context.pitchInput));
+        const bool pitchInputSilent = levelDb < settings.silenceDb;
+        if (pitchInputSilent)
+        {
+            advanceAubioPitchBuffer(context, context.pitchInput);
+            fvec_set_sample(context.pitchOutput, 0.0f, 0);
+        }
+        else
+        {
+            aubio_pitch_do(context.pitch, context.pitchInput, context.pitchOutput);
+        }
 
         const bool onsetDetected = fvec_get_sample(context.onsetOutput, 0) > 0.0f;
-        const auto levelDb = static_cast<double>(aubio_db_spl(context.pitchInput));
         const bool isSilent = !std::isfinite(levelDb) || levelDb <= settings.silenceDb;
         const auto hz = static_cast<double>(fvec_get_sample(context.pitchOutput, 0));
-        const auto confidenceRaw = static_cast<double>(aubio_pitch_get_confidence(context.pitch));
+        const auto confidenceRaw = pitchInputSilent
+            ? 0.0
+            : static_cast<double>(aubio_pitch_get_confidence(context.pitch));
         const auto confidence = std::isfinite(confidenceRaw)
             ? std::clamp(confidenceRaw, 0.0, 1.0)
             : 0.0;

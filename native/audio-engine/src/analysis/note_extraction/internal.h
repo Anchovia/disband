@@ -28,6 +28,7 @@ AubioContext createAubioContext(
     const DetectionSettings& settings);
 
 void destroyAubioContext(AubioContext& context);
+void advanceAubioPitchBuffer(AubioContext& context, const fvec_t* input);
 
 std::vector<PlayedNote> detectNotes(
     const juce::AudioBuffer<float>& workingBuffer,

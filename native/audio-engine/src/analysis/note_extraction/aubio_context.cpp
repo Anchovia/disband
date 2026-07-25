@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <cmath>
 
+// Bundled aubio keeps this state-advance helper externally linked but does not
+// declare it in its public header.
+extern "C" void aubio_pitch_slideblock(aubio_pitch_t* pitch, const fvec_t* input);
+
 namespace disband::session::note_extraction
 {
 AubioContext createAubioContext(
@@ -59,5 +63,10 @@ void destroyAubioContext(AubioContext& context)
     context.onsetOutput = nullptr;
     context.pitchOutput = nullptr;
     context.pitchInput = nullptr;
+}
+
+void advanceAubioPitchBuffer(AubioContext& context, const fvec_t* input)
+{
+    aubio_pitch_slideblock(context.pitch, input);
 }
 } // namespace disband::session::note_extraction
