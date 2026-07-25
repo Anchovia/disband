@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.npm-cache/
 dist
 dist-electron
 dist-ssr
@@ -25,5 +26,8 @@ dist-ssr
 *.sw?
 
 # CMake build directories
-native/audio-engine/build/
+native/audio-engine/build*/
 native/audio-engine/bin/
+
+# Local benchmark output
+benchmark-results/
