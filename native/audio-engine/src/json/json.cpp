@@ -55,6 +55,7 @@ juce::String buildDefaultSettingsJson()
     auto* noteDetectionObj = new juce::DynamicObject();
     noteDetectionObj->setProperty("hopSizeMs", detectionDefaults.hopSizeMs);
     noteDetectionObj->setProperty("pitchFrameSizeMs", detectionDefaults.pitchFrameSizeMs);
+    noteDetectionObj->setProperty("onsetFrameSizeMs", detectionDefaults.onsetFrameSizeMs);
     noteDetectionObj->setProperty("pitchMinHz", detectionDefaults.pitchMinHz);
     noteDetectionObj->setProperty("pitchMaxHz", detectionDefaults.pitchMaxHz);
     noteDetectionObj->setProperty("onsetThreshold", detectionDefaults.onsetThreshold);

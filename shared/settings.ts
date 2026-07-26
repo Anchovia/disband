@@ -15,6 +15,7 @@ export type PlaybackSettings = {
 export type NoteDetectionSettings = {
   hopSizeMs: number;
   pitchFrameSizeMs: number;
+  onsetFrameSizeMs: number;
   pitchMinHz: number;
   pitchMaxHz: number;
   onsetThreshold: number;

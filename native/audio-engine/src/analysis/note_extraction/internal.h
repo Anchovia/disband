@@ -20,7 +20,8 @@ struct AubioContext
     fvec_t* onsetOutput = nullptr;
     aubio_pitch_t* pitch = nullptr;
     aubio_onset_t* onset = nullptr;
-    uint_t analysisBufferSize = 0;
+    uint_t pitchBufferSize = 0;
+    uint_t onsetBufferSize = 0;
 };
 
 AubioContext createAubioContext(

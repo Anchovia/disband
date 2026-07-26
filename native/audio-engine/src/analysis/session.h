@@ -36,6 +36,7 @@ struct DetectionSettings
 {
     double hopSizeMs = 5.0;              // step size of analysis frame
     double pitchFrameSizeMs = 110.0;     // frame size for pitch estimation
+    double onsetFrameSizeMs = 110.0;     // frame size for onset detection
     double pitchMinHz = 28.0;            // lowest pitch to detect
     double pitchMaxHz = 3000.0;          // highest pitch to detect
     double onsetThreshold = 0.22;        // peak picking threshold passed to aubio

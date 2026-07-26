@@ -18,6 +18,8 @@ constexpr int kPitchSplitFrames = 2;
 constexpr double kMinSplitIntervalMs = 25.0;
 constexpr int kLowEnergyEndFrames = 2;
 constexpr double kStableSegmentDurationRatio = 2.0;
+constexpr double kMinPitchBridgeProgress = 0.15;
+constexpr double kMaxPitchBridgeProgress = 0.9;
 
 std::vector<double> normalizeCycle(std::vector<double> cycle)
 {
@@ -113,12 +115,27 @@ void mergeShortPitchBridges(
         const auto& stable = notes[index + 1];
         const double fragmentDurationMs = fragment.endMs - fragment.startMs;
         const double stableDurationMs = stable.endMs - stable.startMs;
-        const int firstStep = fragment.midi - previous.midi;
-        const int secondStep = stable.midi - fragment.midi;
-        const bool isOneDirectionSemitoneBridge =
-            std::abs(firstStep) == 1
-            && std::abs(secondStep) == 1
-            && ((firstStep > 0) == (secondStep > 0));
+        const bool hasBridgePitches =
+            previous.frequencyHz > 0.0
+            && fragment.frequencyHz > 0.0
+            && stable.frequencyHz > 0.0;
+        const double previousPitch =
+            hasBridgePitches ? frequencyToMidi(previous.frequencyHz) : 0.0;
+        const double fragmentPitch =
+            hasBridgePitches ? frequencyToMidi(fragment.frequencyHz) : 0.0;
+        const double stablePitch =
+            hasBridgePitches ? frequencyToMidi(stable.frequencyHz) : 0.0;
+        const double transitionPitchDelta = stablePitch - previousPitch;
+        const double pitchBridgeProgress = std::abs(transitionPitchDelta) > 0.0
+            ? (fragmentPitch - previousPitch) / transitionPitchDelta
+            : 0.0;
+        const int stableMidiStep = std::abs(stable.midi - previous.midi);
+        const bool isPitchBridge =
+            hasBridgePitches
+            && stableMidiStep >= 1
+            && stableMidiStep <= 2
+            && pitchBridgeProgress >= kMinPitchBridgeProgress
+            && pitchBridgeProgress <= kMaxPitchBridgeProgress;
         const bool isContiguous =
             std::abs(fragment.startMs - previous.endMs) <= contiguousToleranceMs
             && std::abs(stable.startMs - fragment.endMs) <= contiguousToleranceMs;
@@ -127,7 +144,7 @@ void mergeShortPitchBridges(
             && fragmentDurationMs < analysisWindowMs
             && stableDurationMs >= fragmentDurationMs * kStableSegmentDurationRatio;
 
-        if (!isOneDirectionSemitoneBridge || !isContiguous || !isShortThenStable)
+        if (!isPitchBridge || !isContiguous || !isShortThenStable)
         {
             ++index;
             continue;
@@ -380,7 +397,7 @@ std::vector<PlayedNote> detectNotes(
             // accept the next onset immediately, which preserves dense repetitions.
             const bool onsetCanSplit = onsetDetected
                 && (!suppressDelayedOnset
-                    || onsetSplitSample - noteStartSample >= static_cast<int>(context.analysisBufferSize));
+                    || onsetSplitSample - noteStartSample >= static_cast<int>(context.onsetBufferSize));
             if (canSplitNow && (onsetCanSplit || pitchTransitionDetected))
             {
                 // Split on explicit onsets; use a short, high-threshold pitch jump fallback.
@@ -417,7 +434,7 @@ std::vector<PlayedNote> detectNotes(
         workingBuffer,
         sampleRate,
         hopSize,
-        context.analysisBufferSize,
+        context.pitchBufferSize,
         settings);
 
     return notes;

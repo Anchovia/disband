@@ -19,16 +19,28 @@ AubioContext createAubioContext(
     AubioContext context;
 
     const auto aubioHopSize = static_cast<uint_t>(hopSize);
-    const auto aubioBufferSize = nextPowerOfTwo(std::max<uint_t>(
+    const auto pitchBufferSize = nextPowerOfTwo(std::max<uint_t>(
         aubioHopSize * 4u,
         static_cast<uint_t>(std::round(settings.pitchFrameSizeMs * sampleRate / 1000.0))));
-    context.analysisBufferSize = aubioBufferSize;
+    const auto onsetBufferSize = nextPowerOfTwo(std::max<uint_t>(
+        aubioHopSize * 4u,
+        static_cast<uint_t>(std::round(settings.onsetFrameSizeMs * sampleRate / 1000.0))));
+    context.pitchBufferSize = pitchBufferSize;
+    context.onsetBufferSize = onsetBufferSize;
 
     context.pitchInput = new_fvec(aubioHopSize);
     context.pitchOutput = new_fvec(1);
     context.onsetOutput = new_fvec(1);
-    context.pitch = new_aubio_pitch("yinfft", aubioBufferSize, aubioHopSize, static_cast<uint_t>(sampleRate));
-    context.onset = new_aubio_onset("specflux", aubioBufferSize, aubioHopSize, static_cast<uint_t>(sampleRate));
+    context.pitch = new_aubio_pitch(
+        "yinfft",
+        pitchBufferSize,
+        aubioHopSize,
+        static_cast<uint_t>(sampleRate));
+    context.onset = new_aubio_onset(
+        "specflux",
+        onsetBufferSize,
+        aubioHopSize,
+        static_cast<uint_t>(sampleRate));
 
     if (context.pitchInput == nullptr || context.pitchOutput == nullptr
         || context.onsetOutput == nullptr || context.pitch == nullptr || context.onset == nullptr)
@@ -64,7 +76,8 @@ void destroyAubioContext(AubioContext& context)
     context.onsetOutput = nullptr;
     context.pitchOutput = nullptr;
     context.pitchInput = nullptr;
-    context.analysisBufferSize = 0;
+    context.pitchBufferSize = 0;
+    context.onsetBufferSize = 0;
 }
 
 void advanceAubioPitchBuffer(AubioContext& context, const fvec_t* input)
