@@ -31,3 +31,6 @@ native/audio-engine/bin/
 
 # Local benchmark output
 benchmark-results/
+
+# Deterministically generated accuracy fixtures
+tests/accuracy/generated/

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "sampleRate": 44100,
+  "cases": [
+    {
+      "name": "clean-guitar-scale",
+      "description": "Clean single-note guitar-range scale with clear gaps.",
+      "leadingSilenceMs": 500,
+      "trailingSilenceMs": 400,
+      "backgroundNoise": 0.0001,
+      "harmonics": [1.0, 0.42, 0.2, 0.1, 0.05],
+      "notes": [
+        { "midi": 40, "durationMs": 650, "gapAfterMs": 180 },
+        { "midi": 45, "durationMs": 650, "gapAfterMs": 180 },
+        { "midi": 50, "durationMs": 650, "gapAfterMs": 180 },
+        { "midi": 55, "durationMs": 650, "gapAfterMs": 180 },
+        { "midi": 59, "durationMs": 650, "gapAfterMs": 180 },
+        { "midi": 64, "durationMs": 650, "gapAfterMs": 0 }
+      ]
+    },
+    {
+      "name": "clean-bass-low",
+      "description": "Low bass notes including E1 with long stable sustains.",
+      "leadingSilenceMs": 600,
+      "trailingSilenceMs": 500,
+      "backgroundNoise": 0.00008,
+      "harmonics": [1.0, 0.5, 0.28, 0.16, 0.09, 0.05],
+      "notes": [
+        { "midi": 28, "durationMs": 1000, "gapAfterMs": 250 },
+        { "midi": 33, "durationMs": 1000, "gapAfterMs": 250 },
+        { "midi": 35, "durationMs": 1000, "gapAfterMs": 250 },
+        { "midi": 40, "durationMs": 1000, "gapAfterMs": 0 }
+      ]
+    },
+    {
+      "name": "staccato-guitar",
+      "description": "Short notes near the detector minimum duration.",
+      "leadingSilenceMs": 400,
+      "trailingSilenceMs": 400,
+      "backgroundNoise": 0.00005,
+      "harmonics": [1.0, 0.35, 0.17, 0.08],
+      "notes": [
+        { "midi": 52, "durationMs": 120, "gapAfterMs": 130, "releaseMs": 12 },
+        { "midi": 55, "durationMs": 120, "gapAfterMs": 130, "releaseMs": 12 },
+        { "midi": 57, "durationMs": 120, "gapAfterMs": 130, "releaseMs": 12 },
+        { "midi": 59, "durationMs": 120, "gapAfterMs": 130, "releaseMs": 12 },
+        { "midi": 60, "durationMs": 120, "gapAfterMs": 130, "releaseMs": 12 },
+        { "midi": 62, "durationMs": 120, "gapAfterMs": 130, "releaseMs": 12 },
+        { "midi": 64, "durationMs": 120, "gapAfterMs": 0, "releaseMs": 12 }
+      ]
+    },
+    {
+      "name": "sustain-vibrato",
+      "description": "Long guitar notes with moderate vibrato.",
+      "leadingSilenceMs": 500,
+      "trailingSilenceMs": 500,
+      "backgroundNoise": 0.00015,
+      "harmonics": [1.0, 0.4, 0.16, 0.07],
+      "notes": [
+        {
+          "midi": 45,
+          "durationMs": 1500,
+          "gapAfterMs": 250,
+          "vibratoCents": 18,
+          "vibratoHz": 5.0
+        },
+        {
+          "midi": 52,
+          "durationMs": 1500,
+          "gapAfterMs": 250,
+          "vibratoCents": 22,
+          "vibratoHz": 5.5
+        },
+        {
+          "midi": 57,
+          "durationMs": 1500,
+          "gapAfterMs": 0,
+          "vibratoCents": 20,
+          "vibratoHz": 4.8
+        }
+      ]
+    },
+    {
+      "name": "legato-transitions",
+      "description": "Back-to-back notes without silent gaps.",
+      "leadingSilenceMs": 500,
+      "trailingSilenceMs": 500,
+      "backgroundNoise": 0.00005,
+      "harmonics": [1.0, 0.38, 0.18, 0.08],
+      "notes": [
+        { "midi": 45, "durationMs": 550, "gapAfterMs": 0, "releaseMs": 8 },
+        { "midi": 47, "durationMs": 550, "gapAfterMs": 0, "releaseMs": 8 },
+        { "midi": 49, "durationMs": 550, "gapAfterMs": 0, "releaseMs": 8 },
+        { "midi": 50, "durationMs": 550, "gapAfterMs": 0, "releaseMs": 8 },
+        { "midi": 52, "durationMs": 550, "gapAfterMs": 0, "releaseMs": 8 }
+      ]
+    },
+    {
+      "name": "noisy-guitar",
+      "description": "Moderate background noise with separated notes.",
+      "leadingSilenceMs": 700,
+      "trailingSilenceMs": 700,
+      "backgroundNoise": 0.006,
+      "harmonics": [1.0, 0.45, 0.22, 0.11],
+      "notes": [
+        { "midi": 40, "durationMs": 700, "gapAfterMs": 220, "amplitude": 0.65 },
+        { "midi": 47, "durationMs": 700, "gapAfterMs": 220, "amplitude": 0.65 },
+        { "midi": 52, "durationMs": 700, "gapAfterMs": 220, "amplitude": 0.65 },
+        { "midi": 59, "durationMs": 700, "gapAfterMs": 0, "amplitude": 0.65 }
+      ]
+    }
+  ]
+}
