@@ -14,6 +14,8 @@ namespace
 {
 constexpr double kMinimumPitchWeight = 0.05;
 constexpr double kPitchSplitMidiDelta = 1.2;
+constexpr double kDenseOnsetPitchMidiDelta = 0.8;
+constexpr double kDenseOnsetThresholdedDescriptor = 1.0;
 constexpr int kPitchSplitFrames = 2;
 constexpr double kMinSplitIntervalMs = 25.0;
 constexpr int kLowEnergyEndFrames = 2;
@@ -212,9 +214,13 @@ std::vector<PlayedNote> detectNotes(
     const int onsetCompensationSamples = std::max(
         0,
         static_cast<int>(std::lround(settings.onsetCompensationMs * sampleRate / 1000.0)));
+    const int minimumNoteSamples = std::max(
+        1,
+        static_cast<int>(std::lround(settings.minNoteMs * sampleRate / 1000.0)));
 
     bool inNote = false;
     bool suppressDelayedOnset = false;
+    bool stabilizingDelayedStartPitch = false;
     int noteStartSample = 0;
     int lowEnergyFrames = 0;
     int pitchSplitFrames = 0;
@@ -225,22 +231,11 @@ std::vector<PlayedNote> detectNotes(
     double confidenceSum = 0.0;
     int confidentFrames = 0;
 
-    auto startNoteAt = [&](
-        int startSample,
-        bool shouldSuppressDelayedOnset,
-        double currentLevelDb,
+    auto resetPitchAccumulator = [&](
         bool currentHasPitch,
         double currentHz,
         double currentConfidence)
     {
-        inNote = true;
-        suppressDelayedOnset = shouldSuppressDelayedOnset;
-        noteStartSample = startSample;
-        lowEnergyFrames = 0;
-        pitchSplitFrames = 0;
-        framesSinceLastSplit = 0;
-        previousLevelDb = currentLevelDb;
-        
         if (currentHasPitch)
         {
             const auto weight = std::max(currentConfidence, kMinimumPitchWeight);
@@ -256,6 +251,25 @@ std::vector<PlayedNote> detectNotes(
             confidenceSum = 0.0;
             confidentFrames = 0;
         }
+    };
+
+    auto startNoteAt = [&](
+        int startSample,
+        bool shouldSuppressDelayedOnset,
+        double currentLevelDb,
+        bool currentHasPitch,
+        double currentHz,
+        double currentConfidence)
+    {
+        inNote = true;
+        suppressDelayedOnset = shouldSuppressDelayedOnset;
+        stabilizingDelayedStartPitch = false;
+        noteStartSample = startSample;
+        lowEnergyFrames = 0;
+        pitchSplitFrames = 0;
+        framesSinceLastSplit = 0;
+        previousLevelDb = currentLevelDb;
+        resetPitchAccumulator(currentHasPitch, currentHz, currentConfidence);
     };
 
     auto flushCurrentNote = [&](int noteEndSample) {
@@ -300,6 +314,7 @@ std::vector<PlayedNote> detectNotes(
 
         inNote = false;
         suppressDelayedOnset = false;
+        stabilizingDelayedStartPitch = false;
         noteStartSample = 0;
         lowEnergyFrames = 0;
         pitchSplitFrames = 0;
@@ -370,6 +385,11 @@ std::vector<PlayedNote> detectNotes(
         {
             lowEnergyFrames = 0;
             ++framesSinceLastSplit;
+            if (stabilizingDelayedStartPitch
+                && frameStart - noteStartSample >= static_cast<int>(context.onsetBufferSize))
+            {
+                stabilizingDelayedStartPitch = false;
+            }
             if (hasPitch && confidence >= settings.minPitchConfidence && totalWeight > 0.0)
             {
                 const auto noteHz = weightedHz / totalWeight;
@@ -391,18 +411,45 @@ std::vector<PlayedNote> detectNotes(
             const int onsetSplitSample = (onsetDetected && detectedSample >= 0 && detectedSample <= frameStart + hopSize)
                 ? std::max(0, detectedSample - onsetCompensationSamples)
                 : frameStart;
-            // The energy gate starts a note immediately, while onset and pitch need
-            // one full analysis window to settle. Suppress only the delayed onset
-            // belonging to an energy- or pitch-started note; onset-started notes can
-            // accept the next onset immediately, which preserves dense repetitions.
+            const auto noteHz = totalWeight > 0.0 ? weightedHz / totalWeight : 0.0;
+            const auto onsetPitchMidiDelta = hasPitch && noteHz > 0.0
+                ? std::abs(frequencyToMidi(hz) - frequencyToMidi(noteHz))
+                : 0.0;
+            const auto onsetThresholdedDescriptor =
+                static_cast<double>(aubio_onset_get_thresholded_descriptor(context.onset));
+            const int onsetAgeSamples = onsetSplitSample - noteStartSample;
+            const bool isDelayedStartOnset = onsetDetected
+                && suppressDelayedOnset
+                && onsetAgeSamples < minimumNoteSamples;
+            const bool corroboratedDenseOnset = onsetAgeSamples >= minimumNoteSamples
+                && (onsetPitchMidiDelta >= kDenseOnsetPitchMidiDelta
+                    || onsetThresholdedDescriptor >= kDenseOnsetThresholdedDescriptor);
+            if (isDelayedStartOnset)
+            {
+                noteStartSample = std::max(noteStartSample, onsetSplitSample);
+                lowEnergyFrames = 0;
+                pitchSplitFrames = 0;
+                framesSinceLastSplit = 0;
+                previousLevelDb = levelDb;
+                stabilizingDelayedStartPitch = true;
+                resetPitchAccumulator(hasPitch, hz, confidence);
+                continue;
+            }
+            // An energy-started note can produce a delayed duplicate onset. Keep
+            // suppressing it for one onset window unless a reportable-duration note
+            // also has a corroborating pitch change, which preserves dense riffs.
             const bool onsetCanSplit = onsetDetected
                 && (!suppressDelayedOnset
-                    || onsetSplitSample - noteStartSample >= static_cast<int>(context.onsetBufferSize));
-            if (canSplitNow && (onsetCanSplit || pitchTransitionDetected))
+                    || onsetAgeSamples >= static_cast<int>(context.onsetBufferSize)
+                    || corroboratedDenseOnset);
+            const bool pitchTransitionCanSplit =
+                pitchTransitionDetected && !stabilizingDelayedStartPitch;
+            if (canSplitNow && (onsetCanSplit || pitchTransitionCanSplit))
             {
                 // Split on explicit onsets; use a short, high-threshold pitch jump fallback.
                 const int splitSample = onsetCanSplit ? onsetSplitSample : frameStart;
-                const bool startedFromPitchTransition = !onsetCanSplit && pitchTransitionDetected;
+                const bool startedFromPitchTransition =
+                    !onsetCanSplit && pitchTransitionCanSplit;
                 flushCurrentNote(splitSample);
                 startNoteAt(
                     splitSample,
