@@ -362,7 +362,7 @@ export function evaluateCase(references, playedNotes, onsetToleranceMs) {
   };
 }
 
-function aggregateResults(results) {
+export function aggregateResults(results) {
   const totals = {
     references: 0,
     played: 0,

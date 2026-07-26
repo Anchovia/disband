@@ -34,3 +34,6 @@ benchmark-results/
 
 # Deterministically generated accuracy fixtures
 tests/accuracy/generated/
+
+# Local Guitar Pro reference scores (do not publish third-party scores)
+tests/data/scores/

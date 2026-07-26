@@ -95,3 +95,79 @@ noise, and playing techniques are simpler than recorded performances.
 Before accepting behavior-changing optimizations, add labeled real recordings
 exported from GP/MIDI or manually annotated note events. Keep both synthetic and
 real-world groups in the acceptance report.
+
+## GP-referenced real recordings
+
+The Electron app renders Guitar Pro files as the reference score. The same
+AlphaTab score data can be used headlessly to measure real recording accuracy.
+
+List the tracks in a GP file:
+
+```powershell
+npm run accuracy:gp-reference -- `
+  --gp "$HOME\Documents\Disband\Songs\example.gp" `
+  --list-tracks
+```
+
+Export one score window as analyzer-ready reference JSON:
+
+```powershell
+npm run accuracy:gp-reference -- `
+  --gp "$HOME\Documents\Disband\Songs\example.gp" `
+  --track 3 `
+  --start-ms 33250 `
+  --duration-ms 26800 `
+  --output benchmark-results/example.references.json
+```
+
+Real test fixtures use this filename convention:
+
+```text
+<exact-gp-filename>__tr-<zero-based-track>__start-<score-ms>__<take>.wav
+```
+
+For example:
+
+```text
+example.gp__tr-3__start-33250__1.wav
+```
+
+Put the corresponding GP file in either `tests/data/scores` (local and ignored
+by Git) or `Documents/Disband/Songs`, then run:
+
+```powershell
+npm run accuracy:real
+```
+
+The command pairs every `tests/data/*.wav` fixture with its GP file and writes:
+
+```text
+benchmark-results/accuracy-real.json
+benchmark-results/accuracy-real.xlsx
+```
+
+The Excel workbook contains summary, matched-note, and unmatched-note sheets.
+Use `--baseline` to compare a later analyzer against an earlier real-world
+report:
+
+```powershell
+npm run accuracy:real -- `
+  --baseline benchmark-results/accuracy-real-baseline.json `
+  --output benchmark-results/accuracy-real-candidate.json `
+  --xlsx benchmark-results/accuracy-real-candidate.xlsx
+```
+
+For an arbitrary single WAV, pass the score metadata explicitly:
+
+```powershell
+npm run accuracy:real -- `
+  --gp "$HOME\Documents\Disband\Songs\example.gp" `
+  --track 3 `
+  --start-ms 33250 `
+  path\to\recording.wav
+```
+
+The analyzer currently produces one pitch at a time. Reports therefore include
+the number of polyphonic score onsets so chord-heavy tracks are not mistaken
+for monophonic detector regressions. GP files and recordings should only be
+committed when their redistribution rights are clear.

@@ -9,6 +9,8 @@
     "benchmark:audio": "node scripts/benchmark-audio.mjs",
     "accuracy:generate": "node scripts/generate-accuracy-fixtures.mjs",
     "accuracy:audio": "node scripts/accuracy-audio.mjs",
+    "accuracy:gp-reference": "node scripts/gp-reference.mjs",
+    "accuracy:real": "node scripts/accuracy-real.mjs",
     "test:accuracy-metrics": "node --test tests/accuracy/*.test.mjs",
     "lint": "eslint src electron --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
