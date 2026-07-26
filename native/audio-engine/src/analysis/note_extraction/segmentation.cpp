@@ -105,6 +105,7 @@ std::vector<PlayedNote> detectNotes(
         static_cast<int>(std::lround(settings.onsetCompensationMs * sampleRate / 1000.0)));
 
     bool inNote = false;
+    bool suppressDelayedOnset = false;
     int noteStartSample = 0;
     int lowEnergyFrames = 0;
     int pitchSplitFrames = 0;
@@ -117,12 +118,14 @@ std::vector<PlayedNote> detectNotes(
 
     auto startNoteAt = [&](
         int startSample,
+        bool shouldSuppressDelayedOnset,
         double currentLevelDb,
         bool currentHasPitch,
         double currentHz,
         double currentConfidence)
     {
         inNote = true;
+        suppressDelayedOnset = shouldSuppressDelayedOnset;
         noteStartSample = startSample;
         lowEnergyFrames = 0;
         pitchSplitFrames = 0;
@@ -187,6 +190,7 @@ std::vector<PlayedNote> detectNotes(
         }
 
         inNote = false;
+        suppressDelayedOnset = false;
         noteStartSample = 0;
         lowEnergyFrames = 0;
         pitchSplitFrames = 0;
@@ -243,7 +247,7 @@ std::vector<PlayedNote> detectNotes(
                 const int startSample = (onsetDetected && detectedSample >= 0 && detectedSample <= frameStart + hopSize)
                     ? std::max(0, detectedSample - onsetCompensationSamples)
                     : frameStart;
-                startNoteAt(startSample, levelDb, hasPitch, hz, confidence);
+                startNoteAt(startSample, !onsetDetected, levelDb, hasPitch, hz, confidence);
             }
             continue;
         }
@@ -274,15 +278,30 @@ std::vector<PlayedNote> detectNotes(
             const int minSplitFrames = std::max(1, static_cast<int>(std::round(kMinSplitIntervalMs / settings.hopSizeMs)));
             const bool canSplitNow = framesSinceLastSplit >= minSplitFrames;
             const bool pitchTransitionDetected = pitchSplitFrames >= kPitchSplitFrames;
-            if (canSplitNow && (onsetDetected || pitchTransitionDetected))
+            const int detectedSample = static_cast<int>(aubio_onset_get_last(context.onset));
+            const int onsetSplitSample = (onsetDetected && detectedSample >= 0 && detectedSample <= frameStart + hopSize)
+                ? std::max(0, detectedSample - onsetCompensationSamples)
+                : frameStart;
+            // The energy gate starts a note immediately, while onset and pitch need
+            // one full analysis window to settle. Suppress only the delayed onset
+            // belonging to an energy- or pitch-started note; onset-started notes can
+            // accept the next onset immediately, which preserves dense repetitions.
+            const bool onsetCanSplit = onsetDetected
+                && (!suppressDelayedOnset
+                    || onsetSplitSample - noteStartSample >= static_cast<int>(context.analysisBufferSize));
+            if (canSplitNow && (onsetCanSplit || pitchTransitionDetected))
             {
                 // Split on explicit onsets; use a short, high-threshold pitch jump fallback.
-                const int detectedSample = static_cast<int>(aubio_onset_get_last(context.onset));
-                const int splitSample = (onsetDetected && detectedSample >= 0 && detectedSample <= frameStart + hopSize)
-                    ? std::max(0, detectedSample - onsetCompensationSamples)
-                    : frameStart;
+                const int splitSample = onsetCanSplit ? onsetSplitSample : frameStart;
+                const bool startedFromPitchTransition = !onsetCanSplit && pitchTransitionDetected;
                 flushCurrentNote(splitSample);
-                startNoteAt(splitSample, levelDb, hasPitch, hz, confidence);
+                startNoteAt(
+                    splitSample,
+                    startedFromPitchTransition,
+                    levelDb,
+                    hasPitch,
+                    hz,
+                    confidence);
                 continue;
             }
             if (hasPitch)

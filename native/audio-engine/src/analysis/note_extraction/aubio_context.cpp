@@ -22,6 +22,7 @@ AubioContext createAubioContext(
     const auto aubioBufferSize = nextPowerOfTwo(std::max<uint_t>(
         aubioHopSize * 4u,
         static_cast<uint_t>(std::round(settings.pitchFrameSizeMs * sampleRate / 1000.0))));
+    context.analysisBufferSize = aubioBufferSize;
 
     context.pitchInput = new_fvec(aubioHopSize);
     context.pitchOutput = new_fvec(1);
@@ -63,6 +64,7 @@ void destroyAubioContext(AubioContext& context)
     context.onsetOutput = nullptr;
     context.pitchOutput = nullptr;
     context.pitchInput = nullptr;
+    context.analysisBufferSize = 0;
 }
 
 void advanceAubioPitchBuffer(AubioContext& context, const fvec_t* input)
