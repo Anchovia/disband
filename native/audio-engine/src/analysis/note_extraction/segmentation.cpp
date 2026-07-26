@@ -4,6 +4,7 @@
 #include "../judgment_errors/errors.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cmath>
 #include <limits>
 
@@ -16,6 +17,7 @@ constexpr double kPitchSplitMidiDelta = 1.2;
 constexpr int kPitchSplitFrames = 2;
 constexpr double kMinSplitIntervalMs = 25.0;
 constexpr int kLowEnergyEndFrames = 2;
+constexpr double kStableSegmentDurationRatio = 2.0;
 
 std::vector<double> normalizeCycle(std::vector<double> cycle)
 {
@@ -86,6 +88,96 @@ std::vector<double> computeWaveformProfile(
         value /= static_cast<double>(cyclesToUse);
 
     return profile;
+}
+
+void mergeShortPitchBridges(
+    std::vector<PlayedNote>& notes,
+    const juce::AudioBuffer<float>& workingBuffer,
+    double sampleRate,
+    int hopSize,
+    uint_t analysisBufferSize,
+    const DetectionSettings& settings)
+{
+    if (notes.size() < 3 || sampleRate <= 0.0 || analysisBufferSize == 0)
+        return;
+
+    const double analysisWindowMs =
+        static_cast<double>(analysisBufferSize) * 1000.0 / sampleRate;
+    const double contiguousToleranceMs =
+        static_cast<double>(hopSize) * 1000.0 / sampleRate;
+
+    for (size_t index = 1; index + 1 < notes.size();)
+    {
+        const auto& previous = notes[index - 1];
+        const auto& fragment = notes[index];
+        const auto& stable = notes[index + 1];
+        const double fragmentDurationMs = fragment.endMs - fragment.startMs;
+        const double stableDurationMs = stable.endMs - stable.startMs;
+        const int firstStep = fragment.midi - previous.midi;
+        const int secondStep = stable.midi - fragment.midi;
+        const bool isOneDirectionSemitoneBridge =
+            std::abs(firstStep) == 1
+            && std::abs(secondStep) == 1
+            && ((firstStep > 0) == (secondStep > 0));
+        const bool isContiguous =
+            std::abs(fragment.startMs - previous.endMs) <= contiguousToleranceMs
+            && std::abs(stable.startMs - fragment.endMs) <= contiguousToleranceMs;
+        const bool isShortThenStable =
+            fragmentDurationMs > 0.0
+            && fragmentDurationMs < analysisWindowMs
+            && stableDurationMs >= fragmentDurationMs * kStableSegmentDurationRatio;
+
+        if (!isOneDirectionSemitoneBridge || !isContiguous || !isShortThenStable)
+        {
+            ++index;
+            continue;
+        }
+
+        const double combinedDurationMs = fragmentDurationMs + stableDurationMs;
+        const double mergedFrequencyHz =
+            ((fragment.frequencyHz * fragmentDurationMs)
+                + (stable.frequencyHz * stableDurationMs))
+            / combinedDurationMs;
+        const int mergedMidi = mergedFrequencyHz > 0.0
+            ? static_cast<int>(std::lround(frequencyToMidi(mergedFrequencyHz)))
+            : -1;
+        if (mergedMidi != stable.midi)
+        {
+            ++index;
+            continue;
+        }
+
+        PlayedNote merged = fragment;
+        merged.endMs = stable.endMs;
+        merged.frequencyHz = mergedFrequencyHz;
+        merged.midi = mergedMidi;
+        merged.confidence =
+            ((fragment.confidence * fragmentDurationMs)
+                + (stable.confidence * stableDurationMs))
+            / combinedDurationMs;
+
+        const int startSample = std::max(
+            0,
+            static_cast<int>(std::lround(merged.startMs * sampleRate / 1000.0)));
+        const int mergedSamples = std::max(
+            1,
+            static_cast<int>(std::lround(combinedDurationMs * sampleRate / 1000.0)));
+        const int velocityWindowSamples = std::max(
+            1,
+            static_cast<int>(std::lround(
+                settings.velocityAnalysisWindowMs * sampleRate / 1000.0)));
+        merged.waveformProfile = computeWaveformProfile(
+            workingBuffer,
+            startSample,
+            std::min(mergedSamples, velocityWindowSamples),
+            sampleRate,
+            merged.frequencyHz,
+            settings.waveformProfileCycleCount);
+
+        notes[index] = std::move(merged);
+        notes.erase(notes.begin() + static_cast<std::ptrdiff_t>(index + 1));
+        ++index;
+    }
 }
 } // namespace
 
@@ -320,6 +412,13 @@ std::vector<PlayedNote> detectNotes(
     }
 
     flushCurrentNote(workingBuffer.getNumSamples() - 1);
+    mergeShortPitchBridges(
+        notes,
+        workingBuffer,
+        sampleRate,
+        hopSize,
+        context.analysisBufferSize,
+        settings);
 
     return notes;
 }
